@@ -25,7 +25,7 @@ const editSlogan = async () => {
   tempSlogan.value = slogan.value;
   isEditingSlogan.value = true;
   await nextTick(() => {
-    slogan.value.focus();
+    slogan.focus();
   });
 }
 // 取消编辑标语
@@ -38,6 +38,16 @@ const saveSlogan = () => {
   isEditingSlogan.value = false;
   localStorage.setItem(SLOGAN_KEY, slogan.value)
 }
+
+// 标记完成
+const markAsCompleted = (todo) => {
+  todo.completed = true
+}
+// 标记未完成
+const markAsUncompleted = (todo) => {
+  todo.completed = false
+}
+
 // 删除
 const removeTodo = (todo) => {
   const index = todoList.value.indexOf(todo)
