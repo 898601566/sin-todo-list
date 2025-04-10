@@ -283,7 +283,6 @@ h1 {
   font-size: 44px;
   margin: 0 auto 12px;
   width: 200px;
-  user-select: none;
 }
 
 .title img {
@@ -403,7 +402,6 @@ h1 {
   height: 44px;
   line-height: 44px;
   overflow: hidden;
-  user-select: none;
 }
 .bar-message:hover {
   background: var(--bg-normal);
@@ -434,7 +432,6 @@ h1 {
 
 .add-content-wrapper {
   position: relative;
-  user-select: none;
 }
 @media only screen and ( max-width: 768px) {
   .add-content-wrapper {
@@ -791,7 +788,6 @@ h1 {
   -webkit-box-pack: start;
       -ms-flex-pack: start;
           justify-content: flex-start;
-  user-select: none;
 }
 @media (max-width: 767px) {
   .nav {
@@ -1045,7 +1041,6 @@ a.inspiration:focus {
   transition: all 0.3s;
   overflow: hidden;
   z-index: 999;
-  user-select: none;
 }
 @media only screen and ( max-width: 768px) {
   .side-bar {
@@ -1111,7 +1106,6 @@ a.inspiration:focus {
   border-bottom: var(--border);
   width: 100%;
   font-weight: bold;
-  user-select: none;
 }
 
 span.shortcut-name {
