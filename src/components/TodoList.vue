@@ -127,13 +127,13 @@ const editTodo = (todo) => {
   return
 }
 
-// 取消编辑标语
+// 取消编辑todo
 const cancelTodo = (todo) => {
   todo.title = editingTodo.value.title;
   editingTodo.value = null
   return
 }
-// 保存标语
+// 保存todo
 const saveTodo = (todo) => {
   if (todo.title.trim() === '') { // 如果为空，则删除
     removeTodo(todo)
