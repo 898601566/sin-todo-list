@@ -27,27 +27,68 @@ const editSlogan = async () => {
   isEditingSlogan.value = true;
   await nextTick(() => {
     sloganInputRef.value.focus();
+    return
   });
+  return
 }
 // 取消编辑标语
 const cancelSlogan = () => {
   isEditingSlogan.value = false;
   slogan.value = tempSlogan.value;
+  return
 }
 // 保存标语
 const saveSlogan = () => {
   isEditingSlogan.value = false;
   localStorage.setItem(SLOGAN_KEY, slogan.value)
+  return
 }
 
 // 标记完成
 const markAsCompleted = (todo) => {
   todo.completed = true
+  return
 }
 // 标记未完成
 const markAsUncompleted = (todo) => {
   todo.completed = false
+  return
 }
+// 全部标记已完成
+const markAllAsCompleted = () => {
+  if (!confirm('确定全部标记为已完成？')) {
+    return
+  }
+  todoList.value.forEach((todo) => {
+    if (!todo.completed) {
+      todo.completed = true
+    }
+    return
+  })
+  console.log(isAllCompleted.value)
+  return
+}
+
+// 全部标记未完成
+const markAllAsUncompleted = () => {
+  if (!confirm('确定全部标记为未完成？')) {
+    return
+  }
+  todoList.value.forEach((todo) => {
+    if (todo.completed) {
+      todo.completed = false
+    }
+    return
+  })
+  console.log(isAllCompleted.value)
+  return
+}
+
+const isAllCompleted = computed(() => {
+  return todoList.value.every((todo) => {
+    return todo.completed === true
+  })
+})
 
 // 删除
 const removeTodo = (todo) => {
@@ -130,11 +171,15 @@ watch(todoList.value, (newTodoList) => {
     <div class="todo-list-box">
       <!-- 全部完成和slogan -->
       <div class="bar-message">
+        <!-- 全部标为完成 -->
         <input type="button" class="btn btn-label btn-allFinish" value="全部标为完成" @click="markAllAsCompleted"
-          v-if="todoList.length" />
+          v-if="todoList.length && !isAllCompleted" />
+        <!-- 全部标为未完成 -->
+        <input type="button" class="btn btn-label btn-allFinish" value="全部标为未完成" @click="markAllAsUncompleted"
+          v-else-if="todoList.length && isAllCompleted" />
         <!-- <template> -->
         <div>
-          <div v-if="!isEditingSlogan" @dblclick="editSlogan" class="bar-message-text" >
+          <div v-if="!isEditingSlogan" @dblclick="editSlogan" class="bar-message-text">
             {{ slogan }}
           </div>
           <div v-else>
