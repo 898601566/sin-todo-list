@@ -13,7 +13,7 @@ const todoListFilter = {
   active: (todoList) => { return todoList.filter((todo) => { return !todo.completed }) },
   completed: (todoList) => { return todoList.filter((todo) => { return todo.completed }) },
 }
-const newTodoTitle = ref(null)
+const newTodoTitle = ref('')
 const checkEmpty = ref(false)
 const slogan = ref("今日事今日毕，勿将今事待明日!.☕")
 
@@ -28,28 +28,32 @@ const removeTodo = (todo) => {
 
 // 添加
 const addTodo = (e) => {
-  console.log(e.target)
-  // e.target 指向元素可能是 button ,可能是 input
-  const title = newTodoTitle.value.trim()
-  if (title) {
-    todoList.value.push({ id: todoList.value.length + 1, title: title, completed: false })
-    newTodoTitle.value = ''
+  console.log(emptyChecked())
+  console.log(checkEmpty.value)
+  if (newTodoTitle.value) {
+    // e.target 指向元素可能是 button ,可能是 input
+    const title = newTodoTitle.value.trim()
+    if (title) {
+      todoList.value.push({ id: todoList.value.length + 1, title: title, completed: false })
+      newTodoTitle.value = ''
+      checkEmpty.value = false
+    }
   } else {
     checkEmpty.value = true
   }
-  newTodoTitle.value = ''
   return
 }
 
+// 检测添加时,todo标题是否为空
 const emptyChecked = () => {
-  return newTodoTitle.value === 0 && checkEmpty.value
+  return !newTodoTitle.value.trim() && checkEmpty.value
 }
 
 watch(todoList.value, (newTodoList) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(newTodoList))
 })
-console.log(checkEmpty.value)
-console.log(newTodoTitle.value === 0 && checkEmpty.value)
+
+console.log(emptyChecked())
 </script>
 
 <template>
@@ -82,7 +86,7 @@ console.log(newTodoTitle.value === 0 && checkEmpty.value)
         <input type="text" rows="3" class="add-content" placeholder="新增待办事项..." v-model="newTodoTitle"
           @keyup.enter="addTodo" :class='{ empty: emptyChecked }' />
         <transition name="tips">
-          <div class="tips" v-if='emptyChecked' style="color:red">💡请输入内容！</div>
+          <div class="tips" v-if='emptyChecked()' style="color:red">💡请输入内容！</div>
         </transition>
         <button class="btn submit-btn" type="button" @click="addTodo">提交</button>
       </div>
@@ -123,8 +127,7 @@ console.log(newTodoTitle.value === 0 && checkEmpty.value)
       <!-- 列表 -->
       <transition-group name="drag" class="todo-list" tag="ul" mode="in-out" @before-enter="beforeEnter" @enter="enter"
         @after-enter="afterEnter" :css="false" appear>
-        <ul>
-          <li v-for="todo in todoList" class='todo-item'>
+          <li v-for="todo in todoList" :key="todo.id" class='todo-item'>
             <div class="todo-content" :class='{ completed: todo.completed }' @dblclick="editdTodo(todo)">
               {{ todo.title }}</div>
             <!-- 标记完成 -->
@@ -149,7 +152,6 @@ console.log(newTodoTitle.value === 0 && checkEmpty.value)
                 alt="删除">
             </div>
           </li>
-        </ul>
       </transition-group>
     </div>
   </div>
