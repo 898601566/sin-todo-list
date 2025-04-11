@@ -13,6 +13,7 @@ const todoListFilter = {
   all: (todoList) => { return todoList },
   active: (todoList) => { return todoList.filter((todo) => { return !todo.completed }) },
   completed: (todoList) => { return todoList.filter((todo) => { return todo.completed }) },
+  uncompleted: (todoList) => { return todoList.filter((todo) => { return !todo.completed }) },
 }
 const vFocus = {
   mounted: (el) => el.focus()
@@ -22,17 +23,12 @@ const checkEmpty = ref(false)
 const slogan = ref(localStorage.getItem(SLOGAN_KEY) || "今日事今日毕，勿将今事待明日!.☕")
 const tempSlogan = ref("")
 const isEditingSlogan = ref(false)
-const sloganInputRef = ref(false)
-const editingTodo = ref({ id: 0, title: '', completed: false })
+const editingTodo = ref(null)
 
 // 编辑标语
 const editSlogan = async () => {
   tempSlogan.value = slogan.value;
   isEditingSlogan.value = true;
-  await nextTick(() => {
-    sloganInputRef.value.focus();
-    return
-  });
   return
 }
 // 取消编辑标语
@@ -69,22 +65,26 @@ const markAllAsCompleted = () => {
     }
     return
   })
-  console.log(isAllCompleted.value)
   return
 }
 
 // 全部标记未完成
 const markAllAsUncompleted = () => {
+  // 弹出确认框，询问用户是否确定将所有任务标记为未完成
   if (!confirm('确定全部标记为未完成？')) {
+    // 如果用户取消，则返回
     return
   }
+  // 遍历任务列表
   todoList.value.forEach((todo) => {
+    // 如果任务已完成，则将其标记为未完成
     if (todo.completed) {
       todo.completed = false
     }
+    // 返回
     return
   })
-  console.log(isAllCompleted.value)
+  // 返回
   return
 }
 // 是否列表全部完成
@@ -105,8 +105,6 @@ const removeTodo = (todo) => {
 
 // 添加
 const addTodo = (e) => {
-  console.log(emptyChecked())
-  console.log(checkEmpty.value)
   if (newTodoTitle.value) {
     // e.target 指向元素可能是 button ,可能是 input
     const title = newTodoTitle.value.trim()
@@ -152,7 +150,6 @@ watch(todoList.value, (newTodoList) => {
   console.log("保存")
   localStorage.setItem(TODO_LIST_KEY, JSON.stringify(newTodoList))
 })
-
 
 </script>
 
@@ -208,8 +205,7 @@ watch(todoList.value, (newTodoList) => {
             {{ slogan }}
           </div>
           <div v-else>
-            <input v-model="slogan" ref="sloganInputRef" class="slogan-input" @keyup.enter="saveSlogan"
-              @keyup.esc="cancelSlogan" />
+            <input v-model="slogan" v-focus class="slogan-input" @keyup.enter="saveSlogan" @keyup.esc="cancelSlogan" />
             <div class="todo-btn btn-edit-submit slogan-btn" @click="saveSlogan"><img
                 src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAxOSAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE2LjUwODQgMTAuMzEwOUMxNy4yMzI0IDEwLjU4MjMgMTguMDM5NCAxMC4yMTU1IDE4LjMxMDkgOS40OTE1N0MxOC41ODIzIDguNzY3NiAxOC4yMTU1IDcuOTYwNjMgMTcuNDkxNiA3LjY4OTE0TDE2LjUwODQgMTAuMzEwOVpNOC45OTk5IDJMMTAuMTMyMSAxLjE3NjU1QzkuODU1OCAwLjc5NjYxOCA5LjQwNzM1IDAuNTgwNjA1IDguOTM4MDIgMC42MDEzNjhDOC40Njg3IDAuNjIyMTMgOC4wNDEwNyAwLjg3Njg5OSA3Ljc5OTM4IDEuMjc5NzRMOC45OTk5IDJaTTcuNjcxNzUgMTcuNTU3MkM3LjQyNzIyIDE4LjI5MDcgNy44MjM2MiAxOS4wODM2IDguNTU3MTMgMTkuMzI4MUM5LjI5MDY0IDE5LjU3MjcgMTAuMDgzNSAxOS4xNzYzIDEwLjMyOCAxOC40NDI4TDcuNjcxNzUgMTcuNTU3MlpNMS4wOTk2MyA3LjkyNzkzQzAuNTA3NTQxIDguNDI1MTkgMC40MzA2NjkgOS4zMDgyOCAwLjkyNzkzMSA5LjkwMDM3QzEuNDI1MTkgMTAuNDkyNSAyLjMwODI4IDEwLjU2OTMgMi45MDAzNyAxMC4wNzIxTDEuMDk5NjMgNy45Mjc5M1pNMTcuNDkxNiA3LjY4OTE0QzE1LjgwMjMgNy4wNTU2NSAxMy45ODQxIDUuNTAzNiAxMi41MDk5IDMuOTY3OTVDMTEuNzkzIDMuMjIxMjIgMTEuMTkzOSAyLjUxNzQgMTAuNzc0NCAyLjAwMDU2QzEwLjU2NTEgMS43NDI2OSAxMC40MDE3IDEuNTMyNzYgMTAuMjkxOSAxLjM4OTA4QzEwLjIzNyAxLjMxNzI3IDEwLjE5NTYgMS4yNjIxMSAxMC4xNjg2IDEuMjI1OUMxMC4xNTUxIDEuMjA3OCAxMC4xNDUzIDEuMTk0NDQgMTAuMTM5MSAxLjE4NjEyQzEwLjEzNjEgMS4xODE5NSAxMC4xMzQgMS4xNzkwNSAxMC4xMzI4IDEuMTc3NDRDMTAuMTMyMiAxLjE3NjY0IDEwLjEzMTggMS4xNzYxNiAxMC4xMzE3IDEuMTc2MDFDMTAuMTMxNyAxLjE3NTkzIDEwLjEzMTcgMS4xNzU5NCAxMC4xMzE3IDEuMTc2MDNDMTAuMTMxOCAxLjE3NjA3IDEwLjEzMTkgMS4xNzYyIDEwLjEzMTkgMS4xNzYyM0MxMC4xMzIgMS4xNzYzNyAxMC4xMzIxIDEuMTc2NTUgOC45OTk5IDJDNy44Njc2NyAyLjgyMzQ1IDcuODY3ODMgMi44MjM2NyA3Ljg2OCAyLjgyMzlDNy44NjgwOCAyLjgyNDAxIDcuODY4MjYgMi44MjQyNiA3Ljg2ODQyIDIuODI0NDdDNy44Njg3MiAyLjgyNDkgNy44NjkwOSAyLjgyNTQgNy44Njk1MyAyLjgyNTk5QzcuODcwMzkgMi44MjcxOCA3Ljg3MTUgMi44Mjg2OSA3Ljg3Mjg1IDIuODMwNTRDNy44NzU1NCAyLjgzNDIzIDcuODc5MjIgMi44MzkyNCA3Ljg4Mzg1IDIuODQ1NTNDNy44OTMxIDIuODU4MTEgNy45MDYxOSAyLjg3NTgyIDcuOTIyOTggMi44OTgzN0M3Ljk1NjU2IDIuOTQzNDUgOC4wMDQ5OSAzLjAwNzkyIDguMDY3MyAzLjA4OTQ0QzguMTkxODUgMy4yNTIzOSA4LjM3MjE3IDMuNDgzODcgOC42MDAzOCAzLjc2NTA2QzkuMDU1OTMgNC4zMjYzNSA5LjcwNjg1IDUuMDkxMjggMTAuNDkgNS45MDcwNUMxMi4wMTU4IDcuNDk2NCAxNC4xOTc3IDkuNDQ0MzUgMTYuNTA4NCAxMC4zMTA5TDE3LjQ5MTYgNy42ODkxNFpNNy42MTM5NyAyLjE5ODAxQzguMTA2NjkgNS42NDY2OSA4LjM0OTk3IDguODI5MjYgOC4zNDk5NyAxMS41QzguMzQ5OTcgMTQuMjAxNSA4LjEwMDE0IDE2LjI3MjIgNy42NzE3NSAxNy41NTcyTDEwLjMyOCAxOC40NDI4QzEwLjg5OTggMTYuNzI3OCAxMS4xNSAxNC4yOTg2IDExLjE1IDExLjVDMTEuMTUgOC42NzA3NiAxMC44OTMyIDUuMzUzMzEgMTAuMzg1OCAxLjgwMTk5TDcuNjEzOTcgMi4xOTgwMVpNMi45MDAzNyAxMC4wNzIxQzMuODgyMjggOS4yNDc0MiA1LjI5NjM2IDguMDkwMzMgNi42NDM3OSA2LjgzMDFDNy45NzY2NCA1LjU4MzUyIDkuMzQ1ODcgNC4xNDQ1OCAxMC4yMDA0IDIuNzIwMjZMNy43OTkzOCAxLjI3OTc0QzcuMTU0MDIgMi4zNTU0MiA2LjAyMzMxIDMuNTc2NjMgNC43MzExOCA0Ljc4NTEzQzMuNDUzNjQgNS45Nzk5OCAyLjExNzcyIDcuMDcyODkgMS4wOTk2MyA3LjkyNzkzTDIuOTAwMzcgMTAuMDcyMVoiIGZpbGw9IiMzMzMyMkUiLz4KPC9zdmc+Cg=="
                 alt="Finish"></div>
@@ -267,7 +263,13 @@ watch(todoList.value, (newTodoList) => {
           </div>
         </li>
       </transition-group>
+      <div class="bar-message bar-bottom">
+        <div class="bar-message-text">
+          <span v-if="todoListFilter.uncompleted(todoList).length > 0">剩余 {{ todoListFilter.uncompleted(
+            todoList).length }} 项未完成</span>
+          <span v-else>全部完成, 继续加油!</span>
+        </div>
+      </div>
     </div>
   </div>
-  <div class="container footer"> count and filter</div>
 </template>
