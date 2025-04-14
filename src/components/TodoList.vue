@@ -1,29 +1,55 @@
 <script setup>
 
 import { ref, computed, watch, nextTick } from 'vue'
-
+const vFocus = {
+  mounted: (el) => el.focus()
+}
 const TODO_LIST_KEY = 'sin-todo'
 const SLOGAN_KEY = 'sin-slogan'
 
 let data = localStorage.getItem(TODO_LIST_KEY) || "[]"
 
 const todoList = ref(JSON.parse(data))
-
-const todoListFilter = {
-  all: (todoList) => { return todoList },
-  active: (todoList) => { return todoList.filter((todo) => { return !todo.completed }) },
-  completed: (todoList) => { return todoList.filter((todo) => { return todo.completed }) },
-  uncompleted: (todoList) => { return todoList.filter((todo) => { return !todo.completed }) },
-}
-const vFocus = {
-  mounted: (el) => el.focus()
-}
 const newTodoTitle = ref('')
+const visibility = ref('all')
 const checkEmpty = ref(false)
 const slogan = ref(localStorage.getItem(SLOGAN_KEY) || "今日事今日毕，勿将今事待明日!.☕")
 const tempSlogan = ref("")
 const isEditingSlogan = ref(false)
 const editingTodo = ref(null)
+
+const filters = {
+  all: (todoList) => { return todoList },
+  active: (todoList) => { return todoList.filter((todo) => { return !todo.isCompleted && !todo.isDelete }) },
+  completed: (todoList) => { return todoList.filter((todo) => { return todo.isCompleted && !todo.isDelete }) },
+  uncompleted: (todoList) => { return todoList.filter((todo) => { return !todo.isCompleted && !todo.isDelete }) },
+  deleted: (todoList) => { return todoList.filter((todo) => { return todo.isDelete }) },
+}
+
+const filteredTodoList = computed(() => {
+  return filters[visibility.value](todoList.value)
+})
+
+// 是否列表全部完成
+const isAllCompleted = computed(() => {
+  return todoList.value.every((todo) => {
+    return todo.isCompleted === true
+  })
+})
+
+// 处理路由
+window.addEventListener('hashchange', onHashChange)
+onHashChange()
+
+function onHashChange() {
+  const route = window.location.hash.replace(/#\/?/, '')
+  if (filters[route]) {
+    visibility.value = route
+  } else {
+    window.location.hash = ''
+    visibility.value = 'all'
+  }
+}
 
 // 编辑标语
 const editSlogan = async () => {
@@ -46,12 +72,12 @@ const saveSlogan = () => {
 
 // 标记完成
 const markAsCompleted = (todo) => {
-  todo.completed = true
+  todo.isCompleted = true
   return
 }
 // 标记未完成
 const markAsUncompleted = (todo) => {
-  todo.completed = false
+  todo.isCompleted = false
   return
 }
 // 全部标记已完成
@@ -60,8 +86,8 @@ const markAllAsCompleted = () => {
     return
   }
   todoList.value.forEach((todo) => {
-    if (!todo.completed) {
-      todo.completed = true
+    if (!todo.isCompleted) {
+      todo.isCompleted = true
     }
     return
   })
@@ -78,8 +104,8 @@ const markAllAsUncompleted = () => {
   // 遍历任务列表
   todoList.value.forEach((todo) => {
     // 如果任务已完成，则将其标记为未完成
-    if (todo.completed) {
-      todo.completed = false
+    if (todo.isCompleted) {
+      todo.isCompleted = false
     }
     // 返回
     return
@@ -87,29 +113,29 @@ const markAllAsUncompleted = () => {
   // 返回
   return
 }
-// 是否列表全部完成
-const isAllCompleted = computed(() => {
-  return todoList.value.every((todo) => {
-    return todo.completed === true
-  })
-})
+
 
 // 删除
 const removeTodo = (todo) => {
-  const index = todoList.value.indexOf(todo)
-  if (index !== -1) {
-    todoList.value.splice(index, 1)
-  }
-  return
+  // const index = todoList.value.indexOf(todo)
+  // if (index !== -1) {
+  //   todoList.value.splice(index, 1)
+  // }
+  // return
+  todo.isDelete = true
 }
 
+// 还原
+const restoreTodo = (todo) => {
+  todo.isDelete = false
+}
 // 添加
 const addTodo = (e) => {
   if (newTodoTitle.value) {
     // e.target 指向元素可能是 button ,可能是 input
     const title = newTodoTitle.value.trim()
     if (title) {
-      todoList.value.push({ id: Date.now(), title: title, completed: false })
+      todoList.value.unshift({ id: Date.now(), title: title, isCompleted: false, isDelete: false })
       newTodoTitle.value = ''
       checkEmpty.value = false
     }
@@ -121,7 +147,7 @@ const addTodo = (e) => {
 
 // 编辑todo
 const editTodo = (todo) => {
-  editingTodo.value = { id: todo.id, title: todo.title, completed: todo.completed }
+  editingTodo.value = { id: todo.id, title: todo.title, isCompleted: todo.isCompleted, isDelete: todo.isDelete }
   return
 }
 
@@ -226,14 +252,14 @@ watch(todoList.value, (newTodoList) => {
       </ul>
       <!-- 列表 -->
       <transition-group name="drag" class="todo-list" tag="ul" mode="in-out" :css="false" appear>
-        <li v-for="todo in todoList" :key="todo.id" class='todo-item'>
-          <div class="todo-content" :class='{ completed: todo.completed }' @dblclick="editTodo(todo)">
+        <li v-for="todo in filteredTodoList" :key="todo.id" class='todo-item'>
+          <div class="todo-content" :class='{ completed: todo.isCompleted }' @dblclick="editTodo(todo)">
             {{ todo.title }}</div>
           <!-- 标记完成 -->
-          <div class="todo-btn btn-finish" v-if="!todo.completed" @click="markAsCompleted(todo)">
+          <div class="todo-btn btn-finish" v-if="!todo.isCompleted" @click="markAsCompleted(todo)">
           </div>
           <!-- 标为未完成 -->
-          <div class="todo-btn btn-unfinish" v-if="todo.completed" @click="markAsUncompleted(todo)">
+          <div class="todo-btn btn-unfinish" v-if="todo.isCompleted" @click="markAsUncompleted(todo)">
             <img
               src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMTgiIHZpZXdCb3g9IjAgMCAyNCAxOCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIuMzYzMTcgOS42NzUwNkMxLjU1OTM5IDkuNDc0NDkgMC43NDUyMDQgOS45NjM0OCAwLjU0NDYyOSAxMC43NjczQzAuMzQ0MDU0IDExLjU3MSAwLjgzMzA0NyAxMi4zODUyIDEuNjM2ODMgMTIuNTg1OEwyLjM2MzE3IDkuNjc1MDZaTTguMTU4NzMgMTZMNi43ODA0MSAxNi41OTE4QzcuMDMwOTggMTcuMTc1NCA3LjYyMTk1IDE3LjUzNzkgOC4yNTU3NSAxNy40OTY5QzguODg5NTQgMTcuNDU1OCA5LjQyODc3IDE3LjAyIDkuNjAxOTEgMTYuNDA4OUw4LjE1ODczIDE2Wk0yMi4zMjYxIDMuNDY0MTNDMjMuMTM0NyAzLjI4NDA2IDIzLjY0NDIgMi40ODI1NyAyMy40NjQxIDEuNjczOTVDMjMuMjg0MSAwLjg2NTMyOCAyMi40ODI2IDAuMzU1NzkxIDIxLjY3MzkgMC41MzU4NjZMMjIuMzI2MSAzLjQ2NDEzWk0xLjYzNjgzIDEyLjU4NThDMi4wMjc2NCAxMi42ODMzIDMuMTIyOTkgMTMuMTUxIDQuMjc3OCAxMy45NDI2QzUuNDM5ODggMTQuNzM5MyA2LjM4OTA2IDE1LjY4MDMgNi43ODA0MSAxNi41OTE4TDkuNTM3MDUgMTUuNDA4MkM4LjgxMDk0IDEzLjcxNzEgNy4zMDE1NyAxMi4zNzgzIDUuOTc0MDYgMTEuNDY4MkM0LjYzOTI3IDEwLjU1MzIgMy4yMTM5OSA5Ljg4NzM4IDIuMzYzMTcgOS42NzUwNkwxLjYzNjgzIDEyLjU4NThaTTkuNjAxOTEgMTYuNDA4OUMxMC4xMzU5IDE0LjUyNDQgMTEuNDk0OCAxMS42NTg1IDEzLjY3MjcgOS4wNjM5NUMxNS44NDQ1IDYuNDc2NzUgMTguNzQxNyA0LjI2MjM1IDIyLjMyNjEgMy40NjQxM0wyMS42NzM5IDAuNTM1ODY2QzE3LjI1ODMgMS41MTkyIDEzLjgyNzUgNC4yMTM0MiAxMS4zNzQ5IDcuMTM1MTRDOC45Mjg1MiAxMC4wNDk1IDcuMzY2NzQgMTMuMjkyOSA2LjcxNTU1IDE1LjU5MTFMOS42MDE5MSAxNi40MDg5WiIgZmlsbD0iIzMzMzIyRSIvPgo8L3N2Zz4K"
               alt="标为未完成" class="icon-finish">
@@ -265,11 +291,57 @@ watch(todoList.value, (newTodoList) => {
       </transition-group>
       <div class="bar-message bar-bottom">
         <div class="bar-message-text">
-          <span v-if="todoListFilter.uncompleted(todoList).length > 0">剩余 {{ todoListFilter.uncompleted(
+          <span v-if="filters.uncompleted(todoList).length > 0">剩余 {{ filters.uncompleted(
             todoList).length }} 项未完成</span>
           <span v-else>全部完成, 继续加油!</span>
         </div>
+
+        <li class="btn-li">
+          <a href="#/all" :class="{ 'selected-link': visibility === 'all', 'underline': true }"> All </a>
+        </li>
+        <li class="btn-li">
+          <a href="#/active" :class="{ 'selected-link': visibility === 'active', 'underline': true }">Active</a>
+        </li>
+        <li class="btn-li">
+          <a href=" #/completed"
+            :class="{ 'selected-link': visibility === 'completed', 'underline': true }">Completed</a>
+        </li>
       </div>
     </div>
+
+    <!-- side-bar -->
+
   </div>
 </template>
+
+<style>
+.btn-li a {
+  display: inline-block;
+  padding: 5px 15px;
+  border-radius: 4px;
+  text-decoration: none;
+  color: #333;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  /* 添加过渡效果 */
+  border: 1px solid #ccc;
+  /* 添加边框 */
+  border-radius: 4px;
+  /* 可选：圆角 */
+  display: inline-block;
+  /* 让div包裹住内容，而不是占据全部宽度 */
+}
+
+.selected-link {
+  font-weight: bold;
+  color: #409EFF;
+  background-color: #ECF5FF;
+}
+
+.btn-li a:hover {
+  background-color: #e0e0e0;
+}
+
+.underline {
+  text-decoration: none;
+}
+</style>
