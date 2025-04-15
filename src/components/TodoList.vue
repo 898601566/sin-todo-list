@@ -1,6 +1,6 @@
 <script setup>
 
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, watchEffect, h, render } from 'vue'
 const vFocus = {
   mounted: (el) => el.focus()
 }
@@ -11,30 +11,42 @@ let data = localStorage.getItem(TODO_LIST_KEY) || "[]"
 
 const todoList = ref(JSON.parse(data))
 const newTodoTitle = ref('')
-const visibility = ref('all')
+const visibility = ref('lived')
 const checkEmpty = ref(false)
 const slogan = ref(localStorage.getItem(SLOGAN_KEY) || "今日事今日毕，勿将今事待明日!.☕")
 const tempSlogan = ref("")
 const isEditingSlogan = ref(false)
 const editingTodo = ref(null)
+const isShow = ref(false)
+const shortCut = ref('开✨')
 
 const filters = {
-  all: (todoList) => { return todoList },
-  active: (todoList) => { return todoList.filter((todo) => { return !todo.isCompleted && !todo.isDelete }) },
-  completed: (todoList) => { return todoList.filter((todo) => { return todo.isCompleted && !todo.isDelete }) },
-  uncompleted: (todoList) => { return todoList.filter((todo) => { return !todo.isCompleted && !todo.isDelete }) },
+  // 已删除
   deleted: (todoList) => { return todoList.filter((todo) => { return todo.isDelete }) },
+  // 未删除
+  lived: (todoList) => { return todoList.filter((todo) => { return !todo.isDelete }) },
+  // 未完成
+  uncompleted: (todoList) => { return todoList.filter((todo) => { return !todo.isCompleted && !todo.isDelete }) },
+  // 已完成
+  completed: (todoList) => { return todoList.filter((todo) => { return todo.isCompleted && !todo.isDelete }) },
 }
+
 
 const filteredTodoList = computed(() => {
   return filters[visibility.value](todoList.value)
 })
 
-// 是否列表全部完成
-const isAllCompleted = computed(() => {
-  return todoList.value.every((todo) => {
-    return todo.isCompleted === true
-  })
+const deletedTodoList = computed(() => {
+  return filters.deleted(todoList.value)
+})
+const livedTodoList = computed(() => {
+  return filters.lived(todoList.value)
+})
+const uncompletedTodoList = computed(() => {
+  return filters.uncompleted(todoList.value)
+})
+const completedTodoList = computed(() => {
+  return filters.completed(todoList.value)
 })
 
 // 处理路由
@@ -47,7 +59,17 @@ function onHashChange() {
     visibility.value = route
   } else {
     window.location.hash = ''
-    visibility.value = 'all'
+    visibility.value = 'lived'
+  }
+}
+
+// 显示隐藏侧边栏
+const shortCutAction = async () => {
+  isShow.value = !isShow.value;
+  if (isShow.value) {
+    return shortCut.value = '关'
+  } else {
+    return shortCut.value = '开✨'
   }
 }
 
@@ -81,32 +103,38 @@ const markAsUncompleted = (todo) => {
   return
 }
 // 全部标记已完成
-const markAllAsCompleted = () => {
+const markLivedAsCompleted = () => {
   if (!confirm('确定全部标记为已完成？')) {
     return
   }
-  todoList.value.forEach((todo) => {
+  livedTodoList.value.forEach((todo) => {
     if (!todo.isCompleted) {
       todo.isCompleted = true
     }
     return
   })
+  // if (visibility.value === 'uncompleted') {
+  //   window.location.hash = 'lived'
+  // }
   return
 }
 
 // 全部标记未完成
-const markAllAsUncompleted = () => {
+const markLivedAsUncompleted = () => {
   // 弹出确认框，询问用户是否确定将所有任务标记为未完成
   if (!confirm('确定全部标记为未完成？')) {
     // 如果用户取消，则返回
     return
   }
   // 遍历任务列表
-  todoList.value.forEach((todo) => {
+  livedTodoList.value.forEach((todo) => {
     // 如果任务已完成，则将其标记为未完成
     if (todo.isCompleted) {
       todo.isCompleted = false
     }
+    // if (visibility.value === 'completed') {
+    //   window.location.hash = 'lived'
+    // }
     // 返回
     return
   })
@@ -114,14 +142,33 @@ const markAllAsUncompleted = () => {
   return
 }
 
+// 清除已完成
+const clearCompleted = () => {
+  if (!confirm('确定清除已完成？')) {
+    return
+  }
+  completedTodoList.value.forEach((todo) => {
+    todo.isDelete = true
+    return
+  })
+  return
+}
+
+// 清除回收站
+const clearDeleted = () => {
+  if (!confirm('确定清除回收站？')) {
+    return
+  }
+  todoList.value = filters.lived(todoList.value)
+  // 跳转
+  // if (visibility.value === 'deleted') {
+  //   window.location.hash = 'lived'
+  // }
+  return
+}
 
 // 删除
 const removeTodo = (todo) => {
-  // const index = todoList.value.indexOf(todo)
-  // if (index !== -1) {
-  //   todoList.value.splice(index, 1)
-  // }
-  // return
   todo.isDelete = true
 }
 
@@ -171,11 +218,106 @@ const emptyChecked = () => {
   return !newTodoTitle.value.trim() && checkEmpty.value
 }
 
-// 监听todoList变化，保存到本地
-watch(todoList.value, (newTodoList) => {
+// watch监听todoList变化，保存到本地
+watch(todoList, () => {
   console.log("保存")
-  localStorage.setItem(TODO_LIST_KEY, JSON.stringify(newTodoList))
-})
+  localStorage.setItem(TODO_LIST_KEY, JSON.stringify(todoList.value))
+}, { deep: true })
+
+// watchEffect 监听 todoList 变化，保存到本地
+// watchEffect(() => {
+//   console.log("保存")
+//   localStorage.setItem(TODO_LIST_KEY, JSON.stringify(todoList.value))
+// })
+
+// 导出数据
+const handleClickDownload = () => {
+  // 获取数据
+  var fetchedTodos = todoList.value;
+  // 将数据转换为文本字符串
+  var todosText = JSON.stringify(fetchedTodos);
+  // 获取当前日期时间并格式化为 "todos-YYYYMMDD.txt"
+  var currentDate = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  var fileName = `todos-${currentDate}.json`;
+
+  // 创建一个隐藏的可下载链接
+  const a = h('a', {
+    href: `data:text/plain;charset=utf-8,${encodeURIComponent(todosText)}`,
+    download: fileName,
+    style: { display: 'none' },
+    onClick: () => {
+      alert(`导出数据 ${fileName} 成功！`);
+    }
+  });
+
+  // 使用 Vue 的 render 函数将 <a> 标签渲染到 DOM 中
+  const container = document.getElementById('exportFile');
+  // const container = document.createElement('div');
+  // document.body.appendChild(container);
+  render(a, container);
+
+  // 触发点击
+  container.querySelector('a').click();
+
+  // 清理
+  render(null, container);
+  // document.body.removeChild(container);
+};
+
+// 导入数据
+const importFile = () => {
+  // 创建一个隐藏的文件输入元素
+  const tempFileInput = ref(null);
+  const fileInput = h('input', {
+    type: 'file',
+    accept: '.txt,.json',
+    style: { display: 'none' },
+    onChange(event) {
+      const file = event.target.files[0];
+      if (!file) {
+        alert('没有选择文件！');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target.result;
+        try {
+          let importedData;
+          if (file.type === 'application/json') {
+            // 如果是 JSON 文件，直接解析
+            importedData = JSON.parse(content);
+          } else if (file.type === 'text/plain') {
+            // 如果是 TXT 文件，尝试将其解析为 JSON（假设 TXT 文件内容格式正确）
+            importedData = JSON.parse(content.trim());
+          } else {
+            throw new Error('不支持的文件类型');
+          }
+          // 更新 todoList 的值
+          todoList.value = importedData;
+        } catch (error) {
+          alert('文件解析错误，请确保文件格式正确：' + error.message);
+        }
+      };
+      reader.onerror = (e) => {
+        alert('读取文件时发生错误：' + e.target.error.name);
+      };
+      reader.readAsText(file);
+    }
+  });
+
+  // 渲染文件输入元素到 DOM 中
+  const container = document.getElementById('importFile');
+  render(fileInput, container);
+
+  // 触发文件选择对话框
+  tempFileInput.value = container.querySelector('input');
+  tempFileInput.value.click();
+
+  // 清理
+  tempFileInput.value.addEventListener('change', () => {
+    render(null, container);
+  });
+};
 
 </script>
 
@@ -219,12 +361,12 @@ watch(todoList.value, (newTodoList) => {
     <div class="todo-list-box">
       <!-- 全部完成和slogan -->
       <div class="bar-message">
-        <!-- 全部标为完成 -->
-        <input type="button" class="btn btn-label btn-allFinish" value="全部标为完成" @click="markAllAsCompleted"
-          v-if="todoList.length && !isAllCompleted" />
+        <!-- 全部标为已完成 -->
+        <input type="button" class="btn btn-label btn-allFinish" value="全部标为已完成" @click="markLivedAsCompleted"
+          v-if="uncompletedTodoList.length && visibility !== 'deleted'" />
         <!-- 全部标为未完成 -->
-        <input type="button" class="btn btn-label btn-allFinish" value="全部标为未完成" @click="markAllAsUncompleted"
-          v-else-if="todoList.length && isAllCompleted" />
+        <input type="button" class="btn btn-label btn-allFinish" value="全部标为未完成" @click="markLivedAsUncompleted"
+          v-else-if="completedTodoList.length && visibility !== 'deleted'" />
         <!-- <template> -->
         <div>
           <div v-if="!isEditingSlogan" @dblclick="editSlogan" class="bar-message-text">
@@ -265,7 +407,7 @@ watch(todoList.value, (newTodoList) => {
               alt="标为未完成" class="icon-finish">
           </div>
           <!-- 还原 -->
-          <div v-if="todo.removed" class="todo-btn btn-restore" @click="restoreTodo(todo)">
+          <div v-if="todo.isDelete" class="todo-btn btn-restore" @click="restoreTodo(todo)">
             <img
               src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkiIGhlaWdodD0iMTkiIHZpZXdCb3g9IjAgMCAxOSAxOSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTcuMzQ3OTggMi42NTc5MkM3LjcxMTM0IDEuOTEzNDQgNy40MDIzOCAxLjAxNTM1IDYuNjU3OSAwLjY1MTk4OEM1LjkxMzQxIDAuMjg4NjI3IDUuMDE1MzIgMC41OTc1OSA0LjY1MTk2IDEuMzQyMDhMNy4zNDc5OCAyLjY1NzkyWk0xLjUyNiA5LjA4MzMzTDAuMzc1NTcxIDguMTIwNzhDMC4wNzc5NTE2IDguNDc2NDkgLTAuMDM4MzgyIDguOTQ5ODcgMC4wNjA0NjEyIDkuNDAzMDFDMC4xNTkzMDQgOS44NTYxNSAwLjQ2MjIwNiAxMC4yMzgxIDAuODgwOTI0IDEwLjQzNzVMMS41MjYgOS4wODMzM1pNMTQuNTcyNCAxNi41ODkzQzE0LjM0NTYgMTcuMzg2IDE0LjgwNzYgMTguMjE1OCAxNS42MDQ0IDE4LjQ0MjZDMTYuNDAxMiAxOC42Njk0IDE3LjIzMSAxOC4yMDczIDE3LjQ1NzggMTcuNDEwNkwxNC41NzI0IDE2LjU4OTNaTTYuMjUxOTIgMTQuMzMyMUM2LjcxMTQ1IDE1LjAyMTMgNy42NDI3NiAxNS4yMDc2IDguMzMyMDUgMTQuNzQ4MUM5LjAyMTM0IDE0LjI4ODUgOS4yMDc2IDEzLjM1NzIgOC43NDgwOCAxMi42Njc5TDYuMjUxOTIgMTQuMzMyMVpNNC42NTE5NiAxLjM0MjA4QzMuNjc2NiAzLjM0MDQ3IDIuNjAwMzMgNS4wNDUyNSAxLjc2NjU4IDYuMjUxMDhDMS4zNTA1OSA2Ljg1MjcyIDAuOTk3MjYzIDcuMzI2ODUgMC43NTAzODQgNy42NDc2MkMwLjYyNzAwNSA3LjgwNzkzIDAuNTMwMzkyIDcuOTI5NyAwLjQ2NjA0NyA4LjAwOTY5QzAuNDMzODggOC4wNDk2NyAwLjQwOTc5NiA4LjA3OTIgMC4zOTQ0ODIgOC4wOTc4NkMwLjM4NjgyNiA4LjEwNzE4IDAuMzgxMzY0IDguMTEzNzkgMC4zNzgxODMgOC4xMTc2M0MwLjM3NjU5MiA4LjExOTU1IDAuMzc1NTcyIDguMTIwNzcgMC4zNzUxMzMgOC4xMjEzQzAuMzc0OTE0IDguMTIxNTcgMC4zNzQ4NCA4LjEyMTY1IDAuMzc0OTEyIDguMTIxNTdDMC4zNzQ5NDggOC4xMjE1MiAwLjM3NTAyMSA4LjEyMTQ0IDAuMzc1MTMxIDguMTIxM0MwLjM3NTE4NiA4LjEyMTI0IDAuMzc1Mjk2IDguMTIxMTEgMC4zNzUzMjMgOC4xMjEwN0MwLjM3NTQ0MiA4LjEyMDkzIDAuMzc1NTcxIDguMTIwNzggMS41MjYgOS4wODMzM0MyLjY3NjQzIDEwLjA0NTkgMi42NzY1OCAxMC4wNDU3IDIuNjc2NzMgMTAuMDQ1NUMyLjY3NjggMTAuMDQ1NCAyLjY3Njk2IDEwLjA0NTIgMi42NzcwOSAxMC4wNDUxQzIuNjc3MzUgMTAuMDQ0OCAyLjY3NzY1IDEwLjA0NDQgMi42Nzc5OCAxMC4wNDRDMi42Nzg2NSAxMC4wNDMyIDIuNjc5NDYgMTAuMDQyMyAyLjY4MDQyIDEwLjA0MTFDMi42ODIzNCAxMC4wMzg4IDIuNjg0ODYgMTAuMDM1OCAyLjY4Nzk0IDEwLjAzMkMyLjY5NDEyIDEwLjAyNDYgMi43MDI2MSAxMC4wMTQzIDIuNzEzMzMgMTAuMDAxM0MyLjczNDc1IDkuOTc1MTYgMi43NjUwOCA5LjkzNzk1IDIuODAzNjIgOS44OTAwNUMyLjg4MDY3IDkuNzk0MjYgMi45OTA2IDkuNjU1NjEgMy4xMjc3OCA5LjQ3NzM4QzMuNDAyMDEgOS4xMjEwNiAzLjc4NTg3IDguNjA1NjIgNC4yMzQxNyA3Ljk1NzI1QzUuMTI5IDYuNjYzMDggNi4yODk3MiA0LjgyNjIgNy4zNDc5OCAyLjY1NzkyTDQuNjUxOTYgMS4zNDIwOFpNMi4wNDcwNCAxMC40ODk5QzMuNzc2MTcgOS44NDk0MiA1LjczMzE5IDkuMTcyMzEgNy42MzggOC43MjEzN0M5LjU3MDA4IDguMjYzOTkgMTEuMzAyNSA4LjA3NjMxIDEyLjYyODggOC4zMDE3QzEzLjg3NTIgOC41MTM1MiAxNC42Mjg0IDkuMDUwMDggMTUuMDE2MyAxMC4wNDA1QzE1LjQ2MjggMTEuMTgwNyAxNS41MzgzIDEzLjE5NTYgMTQuNTcyNCAxNi41ODkzTDE3LjQ1NzggMTcuNDEwNkMxOC40ODQzIDEzLjgwNDIgMTguNjE2NiAxMS4wMDY3IDE3LjgwOTcgOC45NDY0NkMxNi45NDQyIDYuNzM2MzQgMTUuMTMzNyA1LjY4NDM3IDEzLjEzMTQgNS4zNDQxMUMxMS4yMDkyIDUuMDE3NDMgOS4wMDc5OSA1LjMxNDEzIDYuOTQ2OSA1LjgwMjA2QzQuODU4NTYgNi4yOTY0NCAyLjc2MjgzIDcuMDI1NTggMS4wMDQ5NiA3LjY3NjczTDIuMDQ3MDQgMTAuNDg5OVpNOC43NDgwOCAxMi42Njc5QzcuNTIzMTIgMTAuODMwNSA1LjIyOTM0IDkuMTg1OTMgMi4xNzEwOCA3LjcyOTEzTDAuODgwOTI0IDEwLjQzNzVDMy43NzA2NiAxMS44MTQxIDUuNDc2ODggMTMuMTY5NSA2LjI1MTkyIDE0LjMzMjFMOC43NDgwOCAxMi42Njc5WiIgZmlsbD0iIzMzMzIyRSIvPgo8L3N2Zz4K"
               alt="还原">
@@ -289,35 +431,102 @@ watch(todoList.value, (newTodoList) => {
           </div>
         </li>
       </transition-group>
+      <!-- 统计和状态切换 -->
       <div class="bar-message bar-bottom">
-        <div class="bar-message-text">
-          <span v-if="filters.uncompleted(todoList).length > 0">剩余 {{ filters.uncompleted(
-            todoList).length }} 项未完成</span>
-          <span v-else>全部完成, 继续加油!</span>
-        </div>
-
-        <li class="btn-li">
-          <a href="#/all" :class="{ 'selected-link': visibility === 'all', 'underline': true }"> All </a>
-        </li>
-        <li class="btn-li">
-          <a href="#/active" :class="{ 'selected-link': visibility === 'active', 'underline': true }">Active</a>
-        </li>
-        <li class="btn-li">
-          <a href=" #/completed"
-            :class="{ 'selected-link': visibility === 'completed', 'underline': true }">Completed</a>
-        </li>
+        <el-row type="flex" class="row-bg">
+          <el-col :span="24">
+            <div class="bar-message-text">
+              <span v-if="uncompletedTodoList.length > 0">剩余 {{ uncompletedTodoList.length }} 项未完成</span>
+              <span v-else>全部完成, 继续加油!</span>
+            </div>
+          </el-col>
+          <!-- <el-col :span="6">
+            <div class="bar-message">
+              <li class="btn-li">
+                <a href="#/lived" :class="{ 'selected-link': visibility === 'lived', 'underline': true }"> 全部 </a>
+              </li>
+              <li class="btn-li">
+                <a href="#/uncompleted"
+                  :class="{ 'selected-link': visibility === 'uncompleted', 'underline': true }">未完成</a>
+              </li>
+              <li class="btn-li">
+                <a href=" #/completed"
+                  :class="{ 'selected-link': visibility === 'completed', 'underline': true }">已完成</a>
+              </li>
+            </div>
+          </el-col> -->
+        </el-row>
       </div>
     </div>
 
-    <!-- side-bar -->
+    <!-- 侧边栏快捷操作 -->
+    <div class="footer side-bar">
+      <div class="side-shortcut" @click="shortCutAction()" :class="{ fold: isShow }">
+        <div class="shortcut-switch">
+          <span class="shortcut-title">{{ shortCut }}</span>
+          <span class="shortcut-name">快捷操作 </span>
+        </div>
+      </div>
+      <div class="todo-footer-box">
+        <ul class="todo-func-list filter">
+          <!-- <li v-if="todos.length || recycleBin.length">筛选：</li> -->
+          <!-- <li v-if="hasRemovedTodo" ><input type="button" value="撤销" v-if="hasRemovedTodo" @click="restoreTodo()"></li> -->
+          <li>
+            <a href="#/lived" :class="{ 'underline': true }"><input class="btn-small action-showAll" type="button"
+                value="全部" :class="{ selected: visibility === 'lived' }"></a>
+          </li>
 
+          <li v-if="uncompletedTodoList.length && visibility !== 'deleted'">
+            <a href="#/uncompleted" :class="{ 'underline': true }"><input class="btn-small action-progress"
+                type="button" value="进行中" :class="{ selected: visibility === 'uncompleted' }"></a>
+          </li>
+          <li v-if="completedTodoList.length && visibility !== 'deleted'">
+            <a href="#/completed" :class="{ 'underline': true }"><input class="btn-small action-completed" type="button"
+                value="已完成" :class="{ selected: visibility === 'completed' }"></a>
+          </li>
+          <li v-if="deletedTodoList.length">
+            <a href="#/deleted" :class="{ 'underline': true }"><input class="btn-small action-deleted" type="button"
+                :class="{ selected: visibility === 'deleted' }" value="回收站"></a>
+          </li>
+        </ul>
+        <ul class="todo-func-list batch">
+          <!-- <li v-if="todos.length">批量操作：</li> -->
+          <li v-if="uncompletedTodoList.length && visibility !== 'deleted'">
+            <input type="button" class="btn-small completed-all" value="全部标为已完成" @click="markLivedAsCompleted">
+          </li>
+          <li v-else-if="completedTodoList.length && visibility !== 'deleted'">
+            <input type="button" class="btn-small completed-all" value="全部标为未完成" @click="markLivedAsUncompleted">
+          </li>
+          <li v-if="completedTodoList.length && visibility !== 'deleted'">
+            <input type="button" value="清除已完成" class="btn-small completed-clear" @click="clearCompleted">
+          </li>
+          <li v-if="deletedTodoList.length && visibility === 'deleted'">
+            <input type="button" class="btn-small clear-all" value="清除回收站" @click="clearDeleted">
+          </li>
+        </ul>
+        <ul class="todo-func-list datasave">
+          <li v-if="livedTodoList.length && visibility !== 'deleted'">
+            <input type="button" value="导出数据" class="btn-small  action-download" id="download"
+              @click="handleClickDownload"></input>
+            <div id="exportFile" style="display:none"></div>
+          </li>
+          <li v-if="visibility !== 'deleted'">
+            <input value="导入(txt/json)" type="button" class="btn-small action-import" @click="importFile" />
+            <div id="importFile" style="display:none"></div>
+            <!-- <input type="file" id="import-file" accept=".txt,.json" style="display:none"> -->
+          </li>
+        </ul>
+      </div>
+    </div>
   </div>
 </template>
 
 <style>
 .btn-li a {
+  text-orientation: mixed;
+  writing-mode: horizontal-tb;
   display: inline-block;
-  padding: 5px 15px;
+  padding: 5px 5px;
   border-radius: 4px;
   text-decoration: none;
   color: #333;
