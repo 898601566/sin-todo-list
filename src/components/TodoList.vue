@@ -49,6 +49,13 @@ const completedTodoList = computed(() => {
   return filters.completed(todoList.value)
 })
 
+const idToIndex = computed(() => {
+  return todoList.value.reduce((obj, item, index) => {
+    obj[item.id] = index;
+    return obj;
+  }, {});
+})
+
 // 处理路由
 window.addEventListener('hashchange', onHashChange)
 onHashChange()
@@ -234,7 +241,7 @@ watch(todoList, () => {
 const handleClickDownload = () => {
   // 获取数据
   var fetchedTodos = todoList.value;
-  // 将数据转换为文本字符串
+  // 将数据转换为json字符串
   var todosText = JSON.stringify(fetchedTodos);
   // 获取当前日期时间并格式化为 "todos-YYYYMMDD.txt"
   var currentDate = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -252,71 +259,160 @@ const handleClickDownload = () => {
 
   // 使用 Vue 的 render 函数将 <a> 标签渲染到 DOM 中
   const container = document.getElementById('exportFile');
-  // const container = document.createElement('div');
-  // document.body.appendChild(container);
   render(a, container);
-
-  // 触发点击
-  container.querySelector('a').click();
-
-  // 清理
+  // fileExport 模版引用 a 标签
+  const fileExport = ref(null);
+  fileExport.value = container.querySelector('a');
+  // 渲染完成后触发点击
+  nextTick(() => {
+    if (fileExport.value) {
+      fileExport.value.click();
+    }
+  });
+  // 清理渲染
   render(null, container);
-  // document.body.removeChild(container);
 };
 
 // 导入数据
 const importFile = () => {
-  // 创建一个隐藏的文件输入元素
-  const tempFileInput = ref(null);
+  // 获取页面中的导入文件容器
+  const container = document.getElementById('importFile');
+  // 使用 h 函数创建一个隐藏的文件输入元素
   const fileInput = h('input', {
-    type: 'file',
-    accept: '.txt,.json',
-    style: { display: 'none' },
-    onChange(event) {
+    type: 'file', // 设置输入类型为文件
+    accept: '.txt,.json', // 限制接受的文件类型为 .txt 和 .json
+    style: { display: 'none' }, // 将输入元素隐藏
+    // 取消文件选择
+    oncancel: (event) => {
+      render(null, container); // 清空容器
+    },
+    onChange(event) { // 监听文件选择变化事件
+      // 获取选择的文件
       const file = event.target.files[0];
-      if (!file) {
+      // 如果文件为空，则清空容器并提示用户
+      if (!file || file.length == 0) {
+        render(null, container);
         alert('没有选择文件！');
         return;
       }
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const content = e.target.result;
-        try {
-          let importedData;
-          if (file.type === 'application/json') {
-            // 如果是 JSON 文件，直接解析
-            importedData = JSON.parse(content);
-          } else if (file.type === 'text/plain') {
-            // 如果是 TXT 文件，尝试将其解析为 JSON（假设 TXT 文件内容格式正确）
-            importedData = JSON.parse(content.trim());
-          } else {
-            throw new Error('不支持的文件类型');
-          }
-          // 更新 todoList 的值
-          todoList.value = importedData;
-        } catch (error) {
-          alert('文件解析错误，请确保文件格式正确：' + error.message);
-        }
-      };
+
+      const reader = new FileReader(); // 创建 FileReader 实例
+      // 以文本形式读取文件内容
+      reader.readAsText(file);
+      // 监听文件读取错误事件
       reader.onerror = (e) => {
+        // 如果读取文件出错，提示用户错误信息
         alert('读取文件时发生错误：' + e.target.error.name);
       };
-      reader.readAsText(file);
+      // 监听文件读取完成事件
+      reader.onload = (e) => {
+        const content = e.target.result; // 获取文件内容
+        try {
+          let importedData; // 用于存储解析后的数据
+          if (file.type === 'application/json') { // 如果是 JSON 文件
+            // 直接解析 JSON 文件内容
+            importedData = JSON.parse(content);
+          } else if (file.type === 'text/plain') { // 如果是 TXT 文件
+            // 尝试将 TXT 文件内容解析为 JSON（假设格式正确）
+            importedData = JSON.parse(content.trim());
+          } else {
+            throw new Error('不支持的文件类型'); // 抛出不支持文件类型的错误
+          }
+          // 更新 todoList 的值为解析后的数据
+          todoList.value = importedData;
+        } catch (error) {
+          // 如果解析出错，提示用户并显示错误信息
+          alert('文件解析错误，请确保文件格式正确：' + error.message);
+        } finally {
+          // 确保总是清理文件输入元素
+          render(null, container);
+        }
+      };
     }
   });
 
-  // 渲染文件输入元素到 DOM 中
-  const container = document.getElementById('importFile');
+  // 将文件输入元素渲染到容器中
   render(fileInput, container);
-
-  // 触发文件选择对话框
+  // tempFileInput 模版引用 input 标签
+  const tempFileInput = ref(null);
   tempFileInput.value = container.querySelector('input');
-  tempFileInput.value.click();
 
-  // 清理
-  tempFileInput.value.addEventListener('change', () => {
-    render(null, container);
+  // 渲染后点击
+  nextTick(() => {
+    if (tempFileInput.value) {
+      tempFileInput.value.click();
+    }
   });
+};
+
+const dragId = ref(-1);
+
+const dragstart = (id) => {
+  dragId.value = id;
+};
+const dragenter = (e, id) => {
+  // throttledDragover(e, id)
+}
+const throttledDragover = throttle((e, id) => {
+  e.preventDefault();
+  if (dragId.value !== id) {
+    const dragIndex = idToIndex.value[dragId.value];
+    const index = idToIndex.value[id];
+    if (dragIndex !== undefined && index !== undefined && dragIndex !== index) {
+      const source = todoList.value[dragIndex];
+      // 使用数组的 slice 方法创建 todoList.value 的副本
+      const newTodoList = [...todoList.value];
+      newTodoList.splice(dragIndex, 1);
+      newTodoList.splice(index, 0, source);
+      todoList.value = newTodoList;
+    } else {
+      console.warn("Invalid drag operation: dragIndex or index is undefined.");
+    }
+  }
+}, 300);
+
+function throttle(func, delay) {
+  let lastTime = 0; // 上次执行的时间戳
+
+  return function (...args) {
+    const now = Date.now(); // 当前时间戳
+
+    if (now - lastTime >= delay) {
+      // 时间差大于等于 delay，可以执行
+      func.apply(this, args); // 执行函数
+      lastTime = now; // 更新上次执行的时间戳
+    }
+  };
+}
+
+const dragover = (e, id) => {
+  throttledDragover(e, id)
+  e.preventDefault();
+};
+const delayTime = ref(1);
+// JS钩子 加载动画
+const beforeEnter = (dom) => {
+  console.log('beforeEnter');
+  dom.classList.add('drag-enter-active');
+};
+const enter = (dom, done) => {
+  console.log('enter');
+  let delay = dom.dataset.delay;
+  setTimeout(() => {
+    delayTime.value = 1;
+    dom.classList.remove('drag-enter-active');
+    dom.classList.add('drag-enter-to');
+    let transitionend = window.ontransitionend ? "transitionend" : "webkitTransitionEnd";
+    dom.addEventListener(transitionend, function onEnd() {
+      dom.removeEventListener(transitionend, onEnd);
+      done();
+      //调用done() 告诉vue动画已完成，以触发 afterEnter 钩子
+    })
+  }, delay);
+};
+const afterEnter = (dom) => {
+  console.log('afterEnter');
+  dom.classList.remove('drag-enter-to');
 };
 
 </script>
@@ -393,8 +489,11 @@ const importFile = () => {
         <li>📝 支持下载和导入，导入追加到当前序列</li>
       </ul>
       <!-- 列表 -->
-      <transition-group name="drag" class="todo-list" tag="ul" mode="in-out" :css="false" appear>
-        <li v-for="todo in filteredTodoList" :key="todo.id" class='todo-item'>
+      <transition-group name="drag" class="todo-list" tag="ul" mode="in-out" :css="false" appear="true"
+        @before-enter="beforeEnter" @enter="enter" @after-enter="afterEnter">
+        <li v-for="(todo, index) in filteredTodoList" :key="todo.id" class='todo-item'
+          @dragenter="dragenter($event, todo.id)" @dragover="dragover($event, todo.id)" @dragstart="dragstart(todo.id)"
+          draggable="true">
           <div class="todo-content" :class='{ completed: todo.isCompleted }' @dblclick="editTodo(todo)">
             {{ todo.title }}</div>
           <!-- 标记完成 -->
